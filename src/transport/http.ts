@@ -7,7 +7,6 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { randomUUID } from "node:crypto";
 import { createStandaloneServer } from "../server.js";
-import type { Config } from "../types.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
 /** Session storage for streamable HTTP connections */
@@ -16,11 +15,15 @@ const sessions = new Map<
   { transport: StreamableHTTPServerTransport; server: Server }
 >();
 
+interface HttpTransportOptions {
+  port: number;
+}
+
 /**
  * Starts the HTTP transport server
- * @param config - Server configuration
+ * @param options - Server options with port
  */
-export function startHttpTransport(config: Config): void {
+export function startHttpTransport(options: HttpTransportOptions): void {
   const httpServer = createServer();
 
   httpServer.on("request", async (req, res) => {
@@ -40,8 +43,8 @@ export function startHttpTransport(config: Config): void {
 
   const host = "localhost";
 
-  httpServer.listen(config.port, host, () => {
-    logServerStart(config);
+  httpServer.listen(options.port, host, () => {
+    logServerStart(options.port);
   });
 }
 
@@ -137,17 +140,17 @@ function handleNotFound(res: ServerResponse): void {
 
 /**
  * Logs server startup information
- * @param config - Server configuration
+ * @param port - Server port
  */
-function logServerStart(config: Config): void {
-  console.error(`webpage-extract MCP Server listening on http://localhost:${config.port}`);
+function logServerStart(port: number): void {
+  console.error(`webpage-extract MCP Server listening on http://localhost:${port}`);
   console.error("Put this in your client config:");
   console.error(
     JSON.stringify(
       {
         mcpServers: {
           "webpage-extract": {
-            url: `http://localhost:${config.port}/mcp`,
+            url: `http://localhost:${port}/mcp`,
           },
         },
       },

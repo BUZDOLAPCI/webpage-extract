@@ -4,7 +4,10 @@ import type {
   Response,
   ErrorCode,
 } from "../types.js";
-import { DEFAULT_CONFIG } from "../config.js";
+
+/** Default configuration values */
+const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_USER_AGENT = "webpage-extract/1.0.0";
 
 /**
  * Validate URL format
@@ -73,7 +76,7 @@ export async function fetchUrl(
   input: FetchUrlInput
 ): Promise<Response<FetchUrlData>> {
   const { url, headers = {}, timeout_ms } = input;
-  const timeout = timeout_ms ?? DEFAULT_CONFIG.defaultTimeoutMs;
+  const timeout = timeout_ms ?? DEFAULT_TIMEOUT_MS;
 
   // Validate URL
   if (!url || typeof url !== "string") {
@@ -95,7 +98,7 @@ export async function fetchUrl(
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "User-Agent": DEFAULT_CONFIG.userAgent,
+        "User-Agent": DEFAULT_USER_AGENT,
         Accept:
           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         ...headers,

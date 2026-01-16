@@ -117,18 +117,3 @@ export interface ExtractMetadataData {
   json_ld: unknown[];
   meta_tags: Record<string, string>;
 }
-
-/**
- * Configuration types
- */
-export interface Config {
-  transport: "http" | "stdio";
-  port: number;
-  defaultTimeoutMs: number;
-  userAgent: string;
-}
-
-/**
- * Transport types
- */
-export type TransportType = "http" | "stdio";
