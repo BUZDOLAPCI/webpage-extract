@@ -10,8 +10,8 @@ interface CliOptions {
  */
 export function parseArgs(args: string[]): CliOptions {
   const options: CliOptions = {
-    transport: "stdio",
-    port: 8000,
+    transport: "http",
+    port: 8080,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -32,6 +32,8 @@ export function parseArgs(args: string[]): CliOptions {
         process.exit(1);
       }
       options.port = value;
+    } else if (arg === "--stdio") {
+      options.transport = "stdio";
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -55,17 +57,21 @@ USAGE:
   webpage-extract [OPTIONS]
 
 OPTIONS:
-  -t, --transport <TYPE>   Transport type: "stdio" or "http" (default: stdio)
-  -p, --port <PORT>        HTTP server port (default: 8000, only for http transport)
+  -t, --transport <TYPE>   Transport type: "stdio" or "http" (default: http)
+  -p, --port <PORT>        HTTP server port (default: 8080, only for http transport)
+  --stdio                  Use STDIO transport (shorthand for --transport stdio)
   -h, --help               Show this help message
   -v, --version            Show version
 
 EXAMPLES:
-  # Start with STDIO transport (for MCP client integration)
-  webpage-extract --transport stdio
+  # Start with HTTP transport on default port 8080
+  webpage-extract
 
-  # Start with HTTP transport on port 3000
-  webpage-extract --transport http --port 3000
+  # Start with HTTP transport on custom port
+  webpage-extract --port 3000
+
+  # Start with STDIO transport (for MCP client integration)
+  webpage-extract --stdio
 
 TOOLS:
   fetch_url                Fetch raw HTML from a URL

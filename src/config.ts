@@ -5,7 +5,7 @@ import type { Config, TransportType } from "./types.js";
  */
 export function loadConfig(): Config {
   const transport = (process.env.TRANSPORT || "http") as TransportType;
-  const port = parseInt(process.env.PORT || "8000", 10);
+  const port = parseInt(process.env.PORT || "8080", 10);
   const defaultTimeoutMs = parseInt(
     process.env.DEFAULT_TIMEOUT_MS || "30000",
     10
@@ -25,7 +25,7 @@ export function loadConfig(): Config {
  */
 export const DEFAULT_CONFIG: Config = {
   transport: "http",
-  port: 8000,
+  port: 8080,
   defaultTimeoutMs: 30000,
   userAgent: "webpage-extract/1.0.0",
 };
