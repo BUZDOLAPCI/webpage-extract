@@ -19,20 +19,24 @@ npm run build
 
 ## Usage
 
-### STDIO Transport (Recommended for MCP clients)
+### HTTP Transport (Default)
+
+```bash
+# Start with default HTTP transport on port 8080
+npm start
+# or
+node dist/index.js
+
+# Start with custom port
+node dist/index.js --port 3000
+```
+
+### STDIO Transport (for local development)
 
 ```bash
 npm run dev:stdio
 # or
-node dist/index.js --transport stdio
-```
-
-### HTTP Transport
-
-```bash
-npm run dev:http
-# or
-node dist/index.js --transport http --port 8000
+node dist/index.js --stdio
 ```
 
 ## Tools
@@ -292,8 +296,8 @@ Configuration can be set via environment variables or command-line arguments.
 
 | Variable | CLI Flag | Default | Description |
 |----------|----------|---------|-------------|
-| `TRANSPORT` | `--transport, -t` | `stdio` | Transport type: "http" or "stdio" |
-| `PORT` | `--port, -p` | `8000` | HTTP server port |
+| `TRANSPORT` | `--transport, -t` | `http` | Transport type: "http" or "stdio" |
+| `PORT` | `--port, -p` | `8080` | HTTP server port |
 | `DEFAULT_TIMEOUT_MS` | - | `30000` | Default request timeout in ms |
 | `USER_AGENT` | - | `webpage-extract/1.0.0` | User agent for HTTP requests |
 
