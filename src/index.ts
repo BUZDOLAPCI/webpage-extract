@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 
   // Start the appropriate transport
   if (config.transport === "http") {
-    await startHttpTransport(server, config);
+    startHttpTransport(config);
   } else {
     await startStdioTransport(server);
   }
@@ -37,7 +37,7 @@ main().catch((error) => {
 });
 
 // Export for programmatic use
-export { createServer } from "./server.js";
+export { createServer, createStandaloneServer } from "./server.js";
 export { loadConfig } from "./config.js";
 export * from "./types.js";
 export * from "./tools/index.js";

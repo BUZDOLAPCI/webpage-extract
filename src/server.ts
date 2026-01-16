@@ -190,3 +190,105 @@ export function createServer(): Server {
 
   return server;
 }
+
+/**
+ * Factory function for creating standalone server instances
+ * Used by HTTP transport for session-based connections
+ * @returns Configured MCP server instance
+ */
+export function createStandaloneServer(): Server {
+  const server = new Server(
+    {
+      name: "webpage-extract",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+
+  // Register tool list handler
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools: TOOLS };
+  });
+
+  // Register tool call handler
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+
+    try {
+      let result;
+
+      switch (name) {
+        case "fetch_url":
+          result = await fetchUrl(args as unknown as FetchUrlInput);
+          break;
+
+        case "extract_readable_markdown":
+          result = await extractReadableMarkdown(args as unknown as ExtractMarkdownInput);
+          break;
+
+        case "extract_tables":
+          result = await extractTables(args as unknown as ExtractTablesInput);
+          break;
+
+        case "extract_metadata":
+          result = await extractMetadata(args as unknown as ExtractMetadataInput);
+          break;
+
+        default:
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  ok: false,
+                  error: {
+                    code: "INVALID_INPUT",
+                    message: `Unknown tool: ${name}`,
+                  },
+                  meta: {
+                    retrieved_at: new Date().toISOString(),
+                  },
+                }),
+              },
+            ],
+          };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              ok: false,
+              error: {
+                code: "INTERNAL_ERROR",
+                message: errorMessage,
+              },
+              meta: {
+                retrieved_at: new Date().toISOString(),
+              },
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  return server;
+}

@@ -1,95 +1,158 @@
+/**
+ * HTTP transport for webpage-extract MCP server
+ * Uses raw Node.js HTTP with StreamableHTTPServerTransport
+ */
+
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { randomUUID } from "node:crypto";
+import { createStandaloneServer } from "../server.js";
 import type { Config } from "../types.js";
+import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
+
+/** Session storage for streamable HTTP connections */
+const sessions = new Map<
+  string,
+  { transport: StreamableHTTPServerTransport; server: Server }
+>();
 
 /**
- * Simple HTTP transport for MCP server
- * Implements a basic JSON-RPC over HTTP interface
+ * Starts the HTTP transport server
+ * @param config - Server configuration
  */
-export async function startHttpTransport(
-  server: Server,
-  config: Config
-): Promise<void> {
-  const httpServer = createServer(
-    async (req: IncomingMessage, res: ServerResponse) => {
-      // Enable CORS
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+export function startHttpTransport(config: Config): void {
+  const httpServer = createServer();
 
-      // Handle preflight requests
-      if (req.method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
-        return;
-      }
+  httpServer.on("request", async (req, res) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
 
-      // Health check endpoint
-      if (req.method === "GET" && req.url === "/health") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", service: "webpage-extract" }));
-        return;
-      }
-
-      // Only accept POST requests to root
-      if (req.method !== "POST" || (req.url !== "/" && req.url !== "/mcp")) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Not found" }));
-        return;
-      }
-
-      // Parse request body
-      let body = "";
-      for await (const chunk of req) {
-        body += chunk;
-      }
-
-      try {
-        const request = JSON.parse(body);
-
-        // Process the JSON-RPC request through the MCP server
-        // Note: This is a simplified implementation
-        // The MCP SDK typically handles transport internally
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-
-        // For now, return method not supported as MCP SDK handles its own transport
-        res.end(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: request.id,
-            error: {
-              code: -32601,
-              message:
-                "HTTP transport requires SSE or WebSocket. Use STDIO transport for direct communication.",
-            },
-          })
-        );
-      } catch (error) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            error: {
-              code: -32700,
-              message: "Parse error",
-            },
-          })
-        );
-      }
+    switch (url.pathname) {
+      case "/mcp":
+        await handleMcpRequest(req, res);
+        break;
+      case "/health":
+        handleHealthCheck(res);
+        break;
+      default:
+        handleNotFound(res);
     }
-  );
-
-  return new Promise((resolve) => {
-    httpServer.listen(config.port, () => {
-      console.error(`MCP server listening on http://localhost:${config.port}`);
-      console.error("Endpoints:");
-      console.error("  GET  /health - Health check");
-      console.error("  POST /mcp    - MCP JSON-RPC endpoint");
-      console.error("");
-      console.error("Note: For full MCP functionality, use STDIO transport with:");
-      console.error("  npm run dev:stdio");
-      resolve();
-    });
   });
+
+  const host = "localhost";
+
+  httpServer.listen(config.port, host, () => {
+    logServerStart(config);
+  });
+}
+
+/**
+ * Handles MCP protocol requests
+ * @param req - HTTP request
+ * @param res - HTTP response
+ */
+async function handleMcpRequest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+  if (sessionId) {
+    const session = sessions.get(sessionId);
+    if (!session) {
+      res.statusCode = 404;
+      res.end("Session not found");
+      return;
+    }
+    return await session.transport.handleRequest(req, res);
+  }
+
+  if (req.method === "POST") {
+    await createNewSession(req, res);
+    return;
+  }
+
+  res.statusCode = 400;
+  res.end("Invalid request");
+}
+
+/**
+ * Creates a new MCP session for HTTP transport
+ * @param req - HTTP request
+ * @param res - HTTP response
+ */
+async function createNewSession(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  const serverInstance = createStandaloneServer();
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: (sessionId) => {
+      sessions.set(sessionId, { transport, server: serverInstance });
+      console.error("New webpage-extract session created:", sessionId);
+    },
+  });
+
+  transport.onclose = () => {
+    if (transport.sessionId) {
+      sessions.delete(transport.sessionId);
+      console.error("webpage-extract session closed:", transport.sessionId);
+    }
+  };
+
+  try {
+    await serverInstance.connect(transport);
+    await transport.handleRequest(req, res);
+  } catch (error) {
+    console.error("Streamable HTTP connection error:", error);
+    res.statusCode = 500;
+    res.end("Internal server error");
+  }
+}
+
+/**
+ * Handles health check endpoint
+ * @param res - HTTP response
+ */
+function handleHealthCheck(res: ServerResponse): void {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(
+    JSON.stringify({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      service: "webpage-extract",
+      version: "1.0.0",
+    })
+  );
+}
+
+/**
+ * Handles 404 Not Found responses
+ * @param res - HTTP response
+ */
+function handleNotFound(res: ServerResponse): void {
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found");
+}
+
+/**
+ * Logs server startup information
+ * @param config - Server configuration
+ */
+function logServerStart(config: Config): void {
+  console.error(`webpage-extract MCP Server listening on http://localhost:${config.port}`);
+  console.error("Put this in your client config:");
+  console.error(
+    JSON.stringify(
+      {
+        mcpServers: {
+          "webpage-extract": {
+            url: `http://localhost:${config.port}/mcp`,
+          },
+        },
+      },
+      null,
+      2
+    )
+  );
 }
